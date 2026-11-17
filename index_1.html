@@ -1,0 +1,756 @@
+<!DOCTYPE html><html lang="es" translate="no"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="google" content="notranslate">
+<meta name="theme-color" content="#080a0e">
+<meta name="description" content="Ajusta tu postura y juega con más confianza. Análisis de postura con cámara frontal o trasera para béisbol, fútbol, baloncesto y más.">
+<title>Punto de Juego · Ajusta tu postura</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style>
+  :root{
+    --bg:#080a0e; --surface:#11151c; --surface2:#171c25; --line:rgba(255,255,255,.08);
+    --primary:#b6ff3b; --warn:#ffb020; --bad:#ff5470; --text:#eef1f6; --muted:#8c95a6;
+    --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  }
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+  body{min-height:100dvh}
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+  .hidden{display:none!important}
+  .scroll-x{overflow-x:auto;scrollbar-width:none}.scroll-x::-webkit-scrollbar{display:none}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:20px}
+  .sport-card{position:relative;overflow:hidden;text-align:left;padding:16px;border-radius:22px;border:1px solid var(--line);
+    background:linear-gradient(150deg,color-mix(in srgb,var(--acc) 24%,#11151c) 0%,#11151c 70%);transition:transform .15s,border-color .2s}
+  .sport-card:active{transform:scale(.96)}
+  .sport-card:hover{border-color:color-mix(in srgb,var(--acc) 60%,transparent)}
+  .sport-card .em{font-size:40px;line-height:1;filter:drop-shadow(0 6px 10px rgba(0,0,0,.4))}
+  .pos-card{display:flex;gap:14px;align-items:center;width:100%;text-align:left;padding:14px;border-radius:18px;background:var(--surface);border:1px solid var(--line);transition:transform .15s,border-color .2s}
+  .pos-card:active{transform:scale(.98)}
+  .pos-card:hover{border-color:color-mix(in srgb,var(--acc,#b6ff3b) 55%,transparent)}
+  .num{flex:none;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-weight:800;color:#0b0e13;background:var(--acc,#b6ff3b)}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.07);color:var(--muted)}
+  .btn-primary{background:var(--primary);color:#0b0e13;font-weight:800;border-radius:14px;padding:12px 18px}
+  .icon-btn{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.07);border:1px solid var(--line);transition:background .2s,transform .15s}
+  .icon-btn:active{transform:scale(.92)}
+  .icon-btn.on{background:var(--primary);color:#0b0e13}
+  .chip{flex:none;padding:8px 14px;border-radius:99px;font-size:13px;font-weight:600;background:var(--surface2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .chip.active{background:var(--acc);border-color:var(--acc);color:#0b0e13}
+  .glass{background:rgba(8,10,14,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12)}
+  /* camera */
+  #cam,#ov{position:absolute;inset:0;width:100%;height:100%}
+  #cam{object-fit:fill;background:#000}
+  .mirror{transform:scaleX(-1)}
+  .bar{position:relative;height:8px;border-radius:99px;background:rgba(255,255,255,.08);margin:8px 0 4px;overflow:hidden}
+  .band{position:absolute;top:0;bottom:0;border-radius:99px;background:rgba(182,255,59,.32)}
+  .mark{position:absolute;top:-2px;width:5px;height:12px;border-radius:3px;background:#fff;transform:translateX(-50%);transition:left .12s linear,background .2s}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#555;transition:background .2s}
+  .st-ok{background:var(--primary)!important}.st-near{background:var(--warn)!important}.st-bad{background:var(--bad)!important}
+  .tx-ok{color:var(--primary)}.tx-near{color:var(--warn)}.tx-bad{color:var(--bad)}
+  @keyframes pop{0%{transform:translateX(-50%) scale(.6);opacity:0}60%{transform:translateX(-50%) scale(1.08);opacity:1}100%{transform:translateX(-50%) scale(1);opacity:1}}
+  .achieved{animation:pop .45s ease-out both}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin .9s linear infinite}
+  .flip-anim{animation:spin .5s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .fade{animation:fade .3s ease both}
+  .toast{position:fixed;left:50%;bottom:calc(var(--sab) + 90px);transform:translateX(-50%);z-index:80;max-width:90vw;padding:10px 16px;border-radius:14px;background:#1b212c;border:1px solid var(--line);font-size:13px;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+  input[type=search]{-webkit-appearance:none}
+</style>
+</head>
+<body>
+
+<!-- ===================== HOME ===================== -->
+<main id="homeView" class="mx-auto max-w-5xl px-4 pb-16" style="padding-top:calc(var(--sat) + 16px)">
+  <header class="flex items-center gap-3 mb-5">
+    <div class="w-11 h-11 rounded-2xl grid place-items-center" style="background:var(--primary)">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0b0e13" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle><circle cx="12" cy="12" r=".8" fill="#0b0e13"></circle></svg>
+    </div>
+    <div>
+      <h1 class="text-xl font-extrabold leading-tight">Punto de Juego</h1>
+      <p class="text-xs" style="color:var(--muted)">Ajusta tu postura y juega con más confianza</p>
+    </div>
+  </header>
+
+  <section class="card p-5 mb-5 relative overflow-hidden" style="background:linear-gradient(135deg,#1a2410 0%,#11151c 60%)">
+    <div class="absolute -right-6 -top-6 text-[120px] opacity-15 select-none">⚾</div>
+    <h2 class="text-2xl font-extrabold leading-tight max-w-xs">Tu entrenador de postura, en tu bolsillo</h2>
+    <p class="text-sm mt-2 max-w-md" style="color:var(--muted)">Elige un deporte y una posición, apunta la cámara <b class="text-white">frontal o trasera</b> hacia ti y recibe correcciones en tiempo real.</p>
+    <div class="grid grid-cols-3 gap-2 mt-4 text-center text-[11px] max-w-md">
+      <div class="glass rounded-xl py-2.5 px-1"><div class="text-lg">🏅</div>1 · Elige deporte</div>
+      <div class="glass rounded-xl py-2.5 px-1"><div class="text-lg">📷</div>2 · Activa cámara</div>
+      <div class="glass rounded-xl py-2.5 px-1"><div class="text-lg">✅</div>3 · Corrige postura</div>
+    </div>
+  </section>
+
+  <div class="relative mb-5">
+    <svg class="absolute left-4 top-1/2 -translate-y-1/2 opacity-50" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+    <input id="search" type="search" placeholder="Buscar deporte o posición (ej. receptor, portero, saque)…" class="w-full rounded-2xl py-3.5 pl-11 pr-4 text-sm outline-none" style="background:var(--surface);border:1px solid var(--line);color:var(--text)">
+  </div>
+
+  <div id="homeList"></div>
+
+  <p class="text-[11px] text-center mt-10 max-w-md mx-auto leading-relaxed" style="color:var(--muted)">Las medidas son una guía orientativa basada en visión por computadora. No sustituyen a un entrenador ni a un profesional de la salud. Tu video se procesa en tu dispositivo y no se envía a ningún servidor.</p>
+</main>
+
+<!-- ===================== SPORT ===================== -->
+<main id="sportView" class="hidden mx-auto max-w-3xl px-4 pb-16" style="padding-top:calc(var(--sat) + 16px)"></main>
+
+<!-- ===================== TRAIN ===================== -->
+<section id="trainView" class="hidden fixed inset-0 flex flex-col" style="background:var(--bg)">
+  <header class="flex items-center gap-2 px-3 pb-2" style="padding-top:calc(var(--sat) + 10px)">
+    <button id="tBack" class="icon-btn" aria-label="Volver"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+    <div class="min-w-0 flex-1 px-1">
+      <div id="tSport" class="text-[11px] font-bold uppercase tracking-wider truncate" style="color:var(--acc)"></div>
+      <div id="tTitle" class="font-extrabold leading-tight truncate"></div>
+    </div>
+    <button id="tVoice" class="icon-btn" aria-label="Voz de entrenador" title="Voz del entrenador">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7"></path><path d="M18.5 5.5a9 9 0 0 1 0 13"></path></svg>
+    </button>
+    <button id="tFlip" class="icon-btn on" aria-label="Cambiar cámara" title="Cambiar cámara frontal / trasera">
+      <svg id="flipIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3l-1.5-2h-7L7 7H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"></path><path d="M15.5 12.5a3.5 3.5 0 0 0-6-1.5"></path><path d="M9 9.5V11h1.5"></path><path d="M8.5 13.5a3.5 3.5 0 0 0 6 1.5"></path><path d="M15 17.5V16h-1.5"></path></svg>
+    </button>
+  </header>
+
+  <div id="stage" class="relative flex-1 min-h-0 overflow-hidden bg-black flex items-center justify-center">
+    <div id="wrap" class="relative flex-none" style="width:100%;height:100%">
+      <video id="cam" playsinline="" muted="" autoplay=""></video>
+      <canvas id="ov"></canvas>
+    </div>
+
+    <!-- HUD -->
+    <div class="absolute left-3 top-3 glass rounded-2xl p-1.5 flex items-center gap-2 pr-3">
+      <div class="relative w-[60px] h-[60px]">
+        <svg viewBox="0 0 60 60" class="w-full h-full -rotate-90"><circle cx="30" cy="30" r="26" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="6"></circle><circle id="ring" cx="30" cy="30" r="26" fill="none" stroke="#555" stroke-width="6" stroke-linecap="round" stroke-dasharray="163.4" stroke-dashoffset="163.4" style="transition:stroke-dashoffset .2s,stroke .2s"></circle></svg>
+        <div id="scoreTxt" class="absolute inset-0 grid place-items-center font-extrabold text-lg">--</div>
+      </div>
+      <div class="leading-tight"><div class="text-[10px] uppercase tracking-wider" style="color:var(--muted)">Postura</div><div id="scoreLbl" class="text-sm font-bold">Esperando…</div></div>
+    </div>
+
+    <div class="absolute right-3 top-3 flex flex-col items-end gap-1.5">
+      <span id="camChip" class="glass rounded-full px-3 py-1.5 text-[11px] font-semibold flex items-center gap-1.5"><span class="dot st-ok"></span><span id="camChipTxt">Cámara</span></span>
+      <span id="viewChip" class="glass rounded-full px-3 py-1.5 text-[11px] font-semibold"></span>
+    </div>
+
+    <div id="statusChip" class="absolute left-1/2 -translate-x-1/2 bottom-16 glass rounded-full px-4 py-2 text-xs font-semibold text-center max-w-[92%]"></div>
+    <div id="achieved" class="hidden absolute left-1/2 top-24 z-10 px-5 py-3 rounded-2xl font-extrabold text-[#0b0e13] text-lg shadow-2xl" style="background:var(--primary)">🎉 ¡Postura lograda!</div>
+
+    <div class="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-3">
+      <button id="tSnap" class="glass w-12 h-12 rounded-full grid place-items-center" aria-label="Tomar foto" title="Guardar foto con el análisis">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+      </button>
+      <button id="tFlip2" class="btn-primary flex items-center gap-2 text-sm shadow-xl">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"></path><path d="M3 21v-5h5"></path></svg>
+        <span id="flipLbl">Cámara trasera</span>
+      </button>
+      <button id="tPause" class="glass w-12 h-12 rounded-full grid place-items-center" aria-label="Pausar análisis" title="Pausar / reanudar">
+        <svg id="pauseIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+      </button>
+    </div>
+
+    <div id="camMsg" class="hidden absolute inset-0 z-20 grid place-items-center p-6 text-center" style="background:rgba(8,10,14,.9)">
+      <div class="max-w-xs">
+        <div id="camMsgIcon" class="text-5xl mb-3">📷</div>
+        <p id="camMsgTxt" class="text-sm mb-4" style="color:#cfd5e0"></p>
+        <button id="camRetry" class="btn-primary text-sm">Activar cámara</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel inferior -->
+  <div class="flex flex-col" style="max-height:42dvh;background:var(--surface);border-top:1px solid var(--line);border-radius:22px 22px 0 0;margin-top:-14px;position:relative;z-index:5">
+    <div id="posChips" class="scroll-x flex gap-2 px-3 pt-3 pb-2"></div>
+    <div class="overflow-y-auto px-4 pb-4" style="padding-bottom:calc(var(--sab) + 16px)">
+      <div id="coachMsg" class="rounded-2xl px-4 py-3 text-sm font-semibold mb-3" style="background:var(--surface2)">Activa la cámara y colócate dentro del encuadre.</div>
+      <div id="rows" class="grid gap-3 sm:grid-cols-2"></div>
+      <h3 class="text-xs font-bold uppercase tracking-wider mt-4 mb-2" style="color:var(--muted)">Claves de la posición</h3>
+      <p id="posDesc" class="text-sm mb-2" style="color:#cfd5e0"></p>
+      <ul id="posTips" class="text-sm grid gap-1.5" style="color:#cfd5e0"></ul>
+    </div>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+/* ============================================================
+   DATOS: deportes y posiciones
+   spec: k=rodillas(°) t=inclinación torso(°) e=codos(°) s=ancho de pies/hombros h=altura de manos
+   v: 'perfil' (mide torso) | 'frente' (mide apertura de pies)
+============================================================ */
+const P=(n,v,d,tips,sp)=>({n,v,d,tips,sp});
+const SPORTS=[
+ {id:'beisbol',name:'Béisbol',emoji:'⚾',color:'#ff7a45',desc:'Posturas de bateo, lanzamiento y defensa en todas las posiciones del diamante.',pos:[
+  P('Bateador','perfil','Postura de bateo equilibrada, lista para recibir el lanzamiento.',['Pies más abiertos que los hombros','Rodillas flexionadas y peso al centro','Manos junto al hombro trasero, codos relajados','Ojos fijos en el lanzador'],{k:[135,165],t:[6,25],e:[75,125],h:[0.8,1.4]}),
+  P('Lanzador (set)','frente','Posición de partida antes de lanzar a home.',['Pies a la anchura de los hombros','Manos juntas a la altura del pecho','Espalda recta y hombros nivelados','Mirada al receptor'],{k:[160,180],s:[0.8,1.5],e:[55,115],h:[0.4,1.0]}),
+  P('Receptor (cuclillas)','perfil','Cuclillas estables para recibir y bloquear.',['Cadera baja, rodillas bien abiertas','Espalda inclinada pero firme','Guante extendido como blanco','Peso sobre las plantas'],{k:[55,105],t:[10,45],e:[105,180],h:[0.1,0.9]}),
+  P('Primera base','frente','Postura lista para recibir tiros del cuadro.',['Pies más anchos que los hombros','Guante abierto a media altura','Rodillas suaves, peso adelante','Listo para estirarte hacia el tiro'],{k:[125,160],s:[1.3,2.2],e:[95,170],h:[0.0,0.7]}),
+  P('Segunda base','frente','Posición lista para ataque a la bola y doble play.',['Base ancha, rodillas flexionadas','Manos bajas frente al cuerpo','Peso en la parte delantera del pie','Hombros alineados con el bateador'],{k:[110,148],s:[1.4,2.3],e:[110,175],h:[-0.3,0.4]}),
+  P('Campocorto','perfil','Postura baja para cubrir el hueco con rango lateral.',['Torso inclinado, espalda recta','Guante cerca del suelo','Rodillas por delante de los dedos','Movimiento explosivo lateral'],{k:[105,145],t:[25,52],h:[-0.4,0.35]}),
+  P('Tercera base','perfil','Postura profunda para reaccionar a roletazos fuertes.',['Muy bajo y listo para bloquear','Manos delante del cuerpo','Cadera atrás, pecho adelante','Atento al bateo de línea'],{k:[100,140],t:[30,55],h:[-0.5,0.3]}),
+  P('Jardinero','frente','Posición de espera antes del lanzamiento.',['Pies un poco más anchos que los hombros','Peso en las puntas para salir rápido','Manos relajadas a media altura','Ojos en el bateador'],{k:[135,168],s:[1.1,1.9],h:[0.0,0.8]}),
+  P('Corredor (despegue)','perfil','Postura de ventaja fuera de la base.',['Rodillas flexionadas y cadera baja','Peso hacia el pie de adelante','Brazos sueltos, listos para impulsarte','Mirada al lanzador'],{k:[115,152],t:[22,50],h:[-0.4,0.5]})
+ ]},
+ {id:'softbol',name:'Softbol',emoji:'🥎',color:'#ffd23f',desc:'Fundamentos de bateo, lanzamiento “windmill” y defensa.',pos:[
+  P('Bateadora','perfil','Postura de bateo con base sólida.',['Pies a la anchura de hombros o más','Rodillas suaves, peso en el centro','Manos arriba junto al hombro','Cabeza quieta y ojos en la pelota'],{k:[135,165],t:[6,22],e:[80,130],h:[0.8,1.4]}),
+  P('Lanzadora (inicio)','frente','Posición inicial del lanzamiento rueda de molino.',['Pies a la anchura de hombros','Pelota y guante a la altura de la cintura','Espalda recta','Mirada al guante del receptor'],{k:[160,180],s:[0.8,1.5],h:[0.1,0.8]}),
+  P('Receptora','perfil','Cuclillas firmes para recibir y bloquear.',['Cadera baja, rodillas abiertas','Guante como blanco claro','Espalda neutra','Peso en las plantas'],{k:[55,105],t:[10,45],h:[0.1,0.9]}),
+  P('Infield (listo)','perfil','Postura baja antes del batazo.',['Torso inclinado hacia adelante','Guante al suelo','Rodillas flexionadas','Peso en la parte delantera'],{k:[105,145],t:[25,52],h:[-0.4,0.35]}),
+  P('Jardinera','frente','Espera activa en el jardín.',['Pies un poco más anchos que hombros','Peso adelante','Manos a media altura','Listo para correr'],{k:[135,168],s:[1.1,1.9],h:[0.0,0.8]})
+ ]},
+ {id:'futbol',name:'Fútbol',emoji:'⚽',color:'#4ade80',desc:'Posturas base para portero, defensa, medio y delantero.',pos:[
+  P('Portero (base)','frente','Posición base activa para reaccionar al disparo.',['Pies más anchos que los hombros','Rodillas flexionadas, peso adelante','Manos arriba y abiertas','Codos separados del cuerpo'],{k:[120,152],s:[1.3,2.1],e:[95,155],h:[0.5,1.3]}),
+  P('Defensa central','perfil','Postura de contención y salto de cabeza.',['Cuerpo semi lateral','Rodillas flexionadas','Brazos abiertos para equilibrio','Ojos en balón y rival'],{k:[125,158],t:[8,25],h:[-0.2,0.6]}),
+  P('Lateral','perfil','Perfilado para cerrar y acompañar al extremo.',['Cadera abierta, pies en movimiento','Torso ligeramente inclinado','Centro de gravedad bajo','Brazos relajados'],{k:[130,162],t:[8,22],h:[-0.2,0.6]}),
+  P('Mediocampista','frente','Cabeza arriba para escanear antes de recibir.',['Pies a la anchura de hombros','Rodillas ligeras y peso sobre las puntas','Cabeza arriba, hombros abiertos','Brazos separados del cuerpo'],{k:[145,172],s:[0.9,1.6],h:[-0.2,0.6]}),
+  P('Extremo (conducción)','perfil','Postura de conducción a velocidad.',['Torso inclinado hacia adelante','Rodillas flexionadas','Brazos para equilibrio','Balón cerca del pie'],{k:[130,165],t:[10,27],h:[-0.2,0.7]}),
+  P('Delantero (remate)','perfil','Preparación para el disparo a puerta.',['Pie de apoyo firme junto al balón','Cabeza estable y torso sobre la pelota','Brazos abiertos como contrapeso','Rodilla de apoyo ligeramente flexionada'],{k:[125,160],t:[8,25],h:[-0.2,0.8]})
+ ]},
+ {id:'baloncesto',name:'Baloncesto',emoji:'🏀',color:'#ff9f1c',desc:'Postura de tiro, defensa, rebote y juego de poste.',pos:[
+  P('Base (dribbling)','perfil','Postura baja para proteger y avanzar el balón.',['Rodillas flexionadas, cadera baja','Cabeza arriba','Brazo libre protegiendo','Balón por fuera del cuerpo'],{k:[115,152],t:[12,35],h:[-0.2,0.6],e:[90,155]}),
+  P('Triple amenaza','perfil','Posición para tirar, pasar o driblar.',['Balón a la altura de la cadera','Rodillas flexionadas y espalda recta','Pies a la anchura de hombros','Ojos en el aro'],{k:[125,158],t:[8,25],h:[-0.1,0.6]}),
+  P('Tirador (forma de tiro)','perfil','Mecánica de tiro con liberación alta.',['Codo bajo la pelota, alineado al aro','Rodillas flexionadas para impulsar','Torso erguido','Muñeca relajada y seguimiento final'],{k:[140,172],t:[0,12],e:[65,135],h:[1.0,1.8]}),
+  P('Defensa individual','frente','Postura defensiva de deslizamiento lateral.',['Base amplia, cadera baja','Manos activas a media altura','Pecho arriba, espalda recta','Pesos sobre las plantas'],{k:[105,142],s:[1.4,2.4],e:[90,160],h:[0.2,1.2]}),
+  P('Pívot (poste bajo)','perfil','Postura de poste bajo para recibir y sellar.',['Cadera baja, rodillas flexionadas','Antebrazo marcando al defensor','Manos arriba como blanco','Espalda firme'],{k:[105,145],t:[15,38],h:[0.5,1.8]}),
+  P('Rebote','frente','Posición de bloqueo y salto al rebote.',['Pies abiertos, rodillas flexionadas','Codos fuera para ocupar espacio','Manos arriba abiertas','Mirada al balón'],{k:[125,160],s:[1.3,2.2],e:[100,180],h:[1.0,2.2]})
+ ]},
+ {id:'voleibol',name:'Voleibol',emoji:'🏐',color:'#38bdf8',desc:'Recepción, colocación, bloqueo, ataque y saque.',pos:[
+  P('Colocador','frente','Manos arriba para toque de dedos.',['Rodillas ligeras, pies a hombros','Manos arriba formando ventana','Codos flexionados','Mirada al balón'],{k:[125,165],s:[0.8,1.6],e:[60,125],h:[1.2,2.3]}),
+  P('Líbero (recepción)','frente','Postura baja de recepción con antebrazos.',['Rodillas bien flexionadas','Brazos estirados y juntos','Peso adelante','Plataforma estable'],{k:[90,135],s:[1.2,2.0],e:[155,180],h:[-0.5,0.4]}),
+  P('Bloqueador','frente','Bloqueo con brazos arriba sobre la red.',['Brazos estirados sobre la cabeza','Manos abiertas y firmes','Hombros hacia adelante','Rodillas listas para saltar'],{k:[150,178],s:[0.8,1.5],e:[155,180],h:[1.5,3.0]}),
+  P('Atacante (armado)','perfil','Posición previa al remate.',['Rodillas flexionadas','Brazos atrás para el impulso','Torso inclinado','Mirada al balón'],{k:[105,145],t:[12,38],h:[-0.7,0.3]}),
+  P('Defensa de piso','frente','Postura profunda para defender remates.',['Cadera muy baja','Manos delante del cuerpo','Peso hacia adelante','Cabeza arriba'],{k:[80,120],s:[1.2,2.1],h:[-0.6,0.3]}),
+  P('Saque','perfil','Posición previa al saque flotante.',['Pie contrario adelante','Balón en mano a la altura del pecho','Cuerpo erguido','Mirada al objetivo'],{k:[150,180],t:[0,12],h:[0.3,1.2]})
+ ]},
+ {id:'tenis',name:'Tenis',emoji:'🎾',color:'#d9f04a',desc:'Espera, golpes de fondo, volea y saque.',pos:[
+  P('Posición de espera','frente','Postura lista para la devolución.',['Base ancha','Raqueta al frente con ambas manos','Rodillas flexionadas','Pequeño salto de reactivación'],{k:[125,160],s:[1.3,2.1],e:[90,150],h:[0.1,0.9]}),
+  P('Derecha (preparación)','perfil','Giro de hombros y raqueta atrás.',['Hombros girados de perfil','Raqueta atrás, codo flexionado','Rodillas flexionadas','Mirada al impacto'],{k:[125,160],t:[8,25],e:[85,150],h:[0.0,0.9]}),
+  P('Revés a dos manos','perfil','Preparación del revés con giro completo.',['Giro de hombros y cadera','Ambas manos en el mango','Peso sobre el pie trasero','Cabeza quieta'],{k:[125,160],t:[8,25],e:[80,150],h:[0.0,0.9]}),
+  P('Volea','frente','Postura compacta en la red.',['Raqueta delante, sin balanceo largo','Rodillas flexionadas','Muñeca firme','Pasos pequeños'],{k:[125,160],s:[1.2,1.9],e:[90,150],h:[0.4,1.2]}),
+  P('Saque (trofeo)','perfil','Posición del trofeo antes de acelerar.',['Brazo de lanzamiento arriba, codo flexionado','Brazo libre apuntando a la pelota','Rodillas flexionadas','Cuerpo en arco'],{k:[125,168],t:[0,18],e:[65,135],h:[1.2,2.6]})
+ ]},
+ {id:'padel',name:'Pádel',emoji:'🎾',color:'#22d3ee',desc:'Posturas de red, defensa de pared y remates.',pos:[
+  P('Espera en red','frente','Posición activa cerca de la red.',['Pala adelante y alta','Rodillas flexionadas','Pies más anchos que hombros','Peso en las puntas'],{k:[125,160],s:[1.2,1.9],e:[90,150],h:[0.4,1.2]}),
+  P('Bandeja','perfil','Preparación del golpe controlado por encima de la cabeza.',['Pala atrás y arriba','Hombro de perfil','Peso en el pie trasero','Ojos en la bola'],{k:[140,175],t:[0,18],e:[65,135],h:[1.2,2.6]}),
+  P('Defensa de pared','perfil','Posición baja para golpear tras el rebote.',['Cadera baja','Pala a media altura','Espacio con la pared','Paso lateral'],{k:[105,145],t:[12,35],h:[-0.2,0.8]}),
+  P('Víbora / remate','perfil','Preparación del golpe ofensivo con efecto.',['Giro de hombros','Codo alto','Impacto adelante','Pies estables'],{k:[135,172],t:[0,18],e:[80,150],h:[1.1,2.4]})
+ ]},
+ {id:'golf',name:'Golf',emoji:'⛳',color:'#34d399',desc:'Postura de dirección (address) para cada palo.',pos:[
+  P('Hierro (address)','perfil','Postura estándar con hierro medio.',['Inclina desde las caderas, espalda recta','Rodillas ligeramente flexionadas','Brazos colgando relajados','Peso repartido en el medio del pie'],{k:[148,172],t:[24,42],e:[155,180],h:[-0.8,0.1]}),
+  P('Driver (address)','perfil','Postura amplia con bola adelantada.',['Pies más anchos que los hombros','Leve inclinación lateral','Brazos extendidos','Cabeza detrás de la bola'],{k:[155,175],t:[18,36],e:[160,180],h:[-0.8,0.1]}),
+  P('Putt','perfil','Postura estable y compacta.',['Ojos sobre la bola','Hombros paralelos a la línea','Cabeza y cuerpo quietos','Brazos formando un triángulo'],{k:[158,178],t:[28,48],e:[150,180],h:[-0.9,0.0]}),
+  P('Bunker','perfil','Postura de arena con base amplia.',['Pies bien enterrados','Peso en el pie delantero','Rodillas más flexionadas','Cara abierta del palo'],{k:[130,162],t:[18,40],e:[150,180],h:[-0.8,0.1]})
+ ]},
+ {id:'futbolamericano',name:'Fútbol americano',emoji:'🏈',color:'#c08457',desc:'Quarterback, línea, receptor, corredor y defensa.',pos:[
+  P('Quarterback (lanzamiento)','perfil','Postura de lanzamiento desde el bolsillo.',['Balón junto a la oreja','Pies a la anchura de hombros','Hombro contrario apunta al objetivo','Cabeza arriba'],{k:[145,172],t:[0,14],e:[65,125],h:[0.9,1.7]}),
+  P('Línea ofensiva (3 puntos)','perfil','Postura de tres apoyos con espalda plana.',['Espalda plana, cabeza arriba','Peso adelante sobre la mano','Cadera ligeramente arriba','Pies a la anchura de hombros'],{k:[85,125],t:[35,70],h:[-1.1,-0.1]}),
+  P('Receptor (salida)','perfil','Posición previa al snap con salida explosiva.',['Pie delantero retrasado','Cadera baja','Torso inclinado','Brazos listos para impulsar'],{k:[115,152],t:[15,40],h:[-0.4,0.5]}),
+  P('Corredor (backfield)','perfil','Postura baja lista para recibir la entrega.',['Peso sobre las plantas','Pecho sobre las rodillas','Manos abajo','Visión en el campo'],{k:[105,145],t:[20,45],h:[-0.5,0.3]}),
+  P('Línea defensiva','perfil','Postura agresiva para presionar.',['Base amplia','Hombros por delante','Manos listas para golpear','Mirada al balón'],{k:[100,140],t:[25,50],h:[-0.5,0.5]}),
+  P('Linebacker (listo)','frente','Postura atenta para leer la jugada.',['Pies abiertos','Rodillas flexionadas','Manos a media altura','Cabeza arriba'],{k:[125,158],s:[1.3,2.1],h:[0.0,0.7]})
+ ]},
+ {id:'rugby',name:'Rugby',emoji:'🏉',color:'#a78bfa',desc:'Defensa, pase, contacto y saque lateral.',pos:[
+  P('Defensa en línea','frente','Postura de defensa antes del placaje.',['Pies abiertos','Brazos listos a la altura del pecho','Peso adelante','Hombros sobre las rodillas'],{k:[120,155],s:[1.2,1.9],e:[90,160],h:[0.2,1.0]}),
+  P('Pase del medio scrum','perfil','Postura baja con pase largo.',['Espalda inclinada','Piernas abiertas','Balón con ambas manos','Mirada al receptor'],{k:[105,145],t:[20,45],h:[-0.7,0.3]}),
+  P('Contacto / placaje','perfil','Postura baja antes del contacto.',['Cabeza al lado, nunca delante','Cadera baja','Espalda recta','Pasos cortos'],{k:[100,138],t:[28,58],h:[-0.4,0.5]}),
+  P('Saque lateral (lanzador)','frente','Postura del lanzador del saque.',['Brazos extendidos sobre la cabeza','Pies firmes','Espalda recta','Mirada al saltador'],{k:[150,178],s:[0.8,1.5],e:[145,180],h:[1.4,2.8]})
+ ]},
+ {id:'balonmano',name:'Balonmano',emoji:'🤾',color:'#f472b6',desc:'Portero, defensa y lanzamiento en suspensión.',pos:[
+  P('Portero','frente','Postura base con brazos abiertos.',['Piernas abiertas','Brazos separados','Peso adelante','Mirada al balón'],{k:[130,162],s:[1.4,2.3],e:[120,180],h:[0.8,2.0]}),
+  P('Defensa','frente','Defensa con brazos activos.',['Rodillas flexionadas','Brazos abiertos y firmes','Pies a más que los hombros','Contacto controlado'],{k:[125,158],s:[1.3,2.1],e:[90,160],h:[0.6,1.6]}),
+  P('Lanzamiento en salto','perfil','Preparación del lanzamiento por encima del hombro.',['Brazo atrás y alto','Codo a la altura del hombro','Tronco erguido','Mirada a la portería'],{k:[145,176],t:[0,16],e:[75,140],h:[1.2,2.3]}),
+  P('Pivote','perfil','Postura de bloqueo en la línea de seis metros.',['Cadera baja','Brazos como barrera','Espalda firme','Peso estable'],{k:[110,148],t:[12,34],h:[0.2,1.4]})
+ ]},
+ {id:'hockey',name:'Hockey',emoji:'🏒',color:'#60a5fa',desc:'Postura base, pase, tiro y portero.',pos:[
+  P('Postura base','perfil','Postura baja y estable.',['Rodillas muy flexionadas','Torso inclinado','Stick delante del cuerpo','Cabeza arriba'],{k:[100,140],t:[18,42],h:[-0.6,0.3]}),
+  P('Portero (mariposa)','frente','Postura de bloqueo con piernas abiertas.',['Base muy amplia','Manos a los lados','Torso erguido','Mirada al disco'],{k:[95,135],s:[1.6,2.7],h:[0.1,0.8]}),
+  P('Pase y tiro','perfil','Preparación para el tiro con transferencia de peso.',['Peso en el pie trasero','Stick junto a la cadera','Hombros alineados','Mirada al objetivo'],{k:[115,152],t:[15,38],h:[-0.7,0.2]}),
+  P('Defensa','frente','Contención lateral con stick activo.',['Rodillas flexionadas','Stick en el hielo','Pies abiertos','Peso equilibrado'],{k:[110,145],s:[1.4,2.3],h:[-0.4,0.5]})
+ ]},
+ {id:'boxeo',name:'Boxeo',emoji:'🥊',color:'#ef4444',desc:'Guardia, esquivas y bloqueos.',pos:[
+  P('Guardia ortodoxa','perfil','Guardia clásica de lado.',['Puños a la altura de la barbilla','Codos pegados al cuerpo','Pies en diagonal','Rodillas ligeras'],{k:[135,168],t:[4,20],e:[30,100],h:[0.8,1.6]}),
+  P('Guardia frontal','frente','Guardia vista de frente.',['Manos arriba','Codos cerrados','Pies a la anchura de hombros','Mentón abajo'],{k:[138,168],s:[1.0,1.8],e:[30,105],h:[0.8,1.7]}),
+  P('Esquiva','perfil','Cuerpo bajo para evitar el golpe.',['Flexiona las rodillas','Guarda la cabeza fuera de línea','Manos siempre arriba','Peso adelante'],{k:[105,145],t:[12,38],e:[30,105],h:[0.5,1.5]}),
+  P('Bloqueo alto','frente','Defensa con los guantes cerca de la cara.',['Codos cerrados al frente','Mentón bajo','Guantes en las sienes','Respiración controlada'],{k:[135,170],s:[0.9,1.8],e:[25,85],h:[1.1,1.9]})
+ ]},
+ {id:'badminton',name:'Bádminton',emoji:'🏸',color:'#facc15',desc:'Espera, smash, saque corto y defensa baja.',pos:[
+  P('Espera (base)','frente','Posición de preparación en el centro.',['Pies a la anchura de hombros','Raqueta al frente y arriba','Rodillas ligeras','Peso en las puntas'],{k:[125,162],s:[1.1,1.9],e:[90,145],h:[0.5,1.2]}),
+  P('Smash','perfil','Preparación del remate potente.',['Hombro atrás, codo alto','Cuerpo en arco','Contacto arriba y adelante','Peso del pie trasero al delantero'],{k:[145,178],t:[0,16],e:[140,180],h:[1.4,2.6]}),
+  P('Defensa baja','perfil','Postura baja para devolver remates.',['Rodillas más flexionadas','Raqueta adelante','Cadera baja','Mirada al volante'],{k:[100,140],t:[15,40],e:[100,170],h:[-0.3,0.8]}),
+  P('Saque corto','perfil','Preparación del saque de precisión.',['Pie delantero adelantado','Volante a la altura de la cintura','Torso ligeramente inclinado','Muñeca firme'],{k:[140,172],t:[5,22],h:[-0.1,0.8]})
+ ]},
+ {id:'atletismo',name:'Atletismo',emoji:'🏃',color:'#fb7185',desc:'Salida de tacos, sprint, fondo y salto.',pos:[
+  P('Salida de tacos (listos)','perfil','Posición “listos” con cadera elevada.',['Cadera sobre los hombros','Brazos extendidos','Cuello relajado','Peso en las manos'],{k:[85,135],t:[40,80],e:[150,180],h:[-1.4,-0.2]}),
+  P('Sprint (fase de aceleración)','perfil','Inclinación fuerte en la aceleración.',['Torso inclinado','Rodillas altas','Codos a 90°','Impulso hacia atrás'],{k:[115,165],t:[15,35],e:[70,115],h:[-0.5,0.9]}),
+  P('Carrera de fondo','perfil','Postura eficiente para ritmo sostenido.',['Torso casi erguido','Hombros relajados','Brazos en 90°','Pisada bajo la cadera'],{k:[150,175],t:[2,13],e:[70,115],h:[-0.1,0.7]}),
+  P('Salto de longitud (despegue)','perfil','Postura antes del despegue.',['Cadera alta','Torso erguido','Última zancada rápida','Mirada al frente'],{k:[162,180],t:[0,10],h:[-0.2,1.2]})
+ ]}
+];
+
+/* ============================================================
+   MÉTRICAS
+============================================================ */
+const DEF={
+ k:{name:'Rodillas',tol:30,min:40,max:180,u:'°',low:'Estira un poco las rodillas',high:'Flexiona más las rodillas',j:[25,26]},
+ t:{name:'Inclinación del torso',tol:20,min:0,max:80,u:'°',low:'Inclina menos el torso (endereza la espalda)',high:'Inclina más el torso hacia adelante',j:[11,12,23,24],swap:true},
+ e:{name:'Codos',tol:40,min:20,max:180,u:'°',low:'Estira más los brazos',high:'Flexiona más los codos',j:[13,14],swap:true},
+ s:{name:'Apertura de pies',tol:.6,min:.4,max:3,u:'×',low:'Junta un poco los pies',high:'Abre más los pies',j:[27,28],swap:true},
+ h:{name:'Altura de manos',tol:.6,min:-1.4,max:3,u:'',low:'Baja las manos',high:'Sube las manos',j:[15,16],swap:true}
+};
+/* En k: valor bajo = muy flexionado => "Estira"; valor alto => "Flexiona". En el resto: valor bajo => necesita más (según texto) */
+DEF.k.dirLow='Estira un poco las rodillas'; DEF.k.dirHigh='Flexiona más las rodillas';
+const MSG={
+ k:{low:'Estira un poco las rodillas',high:'Flexiona más las rodillas'},
+ t:{low:'Inclina más el torso hacia adelante',high:'Endereza un poco el torso'},
+ e:{low:'Flexiona más los codos',high:'Estira más los brazos'},
+ s:{low:'Abre más los pies',high:'Junta un poco los pies'},
+ h:{low:'Sube las manos',high:'Baja las manos'}
+};
+function zone(r){return r<-0.2?'suelo':r<0.3?'cadera':r<0.7?'abdomen':r<1.1?'pecho':r<1.6?'hombros+':'sobre cabeza'}
+function fmtRange(k,[a,b]){
+  if(k==='h') return zone(a)+' → '+zone(b);
+  const d=k==='s'?1:0; return a.toFixed(d)+'–'+b.toFixed(d)+DEF[k].u;
+}
+function fmtVal(k,v){ if(k==='h') return zone(v); return (k==='s'?v.toFixed(1):Math.round(v))+DEF[k].u; }
+
+/* ============================================================
+   ESTADO / UTILIDADES
+============================================================ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const state={view:'home',sportId:null,posIdx:0,q:''};
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+};
+let best=store.get('pdj_best',{});
+let voiceOn=store.get('pdj_voice',false);
+const sportById=id=>SPORTS.find(s=>s.id===id);
+function toast(msg,ms=2600){const t=$('#toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.add('hidden'),ms)}
+
+/* ============================================================
+   RENDER HOME / SPORT
+============================================================ */
+function posCard(sp,i,showSport){
+  const p=sp.pos[i], b=best[sp.id+':'+i];
+  return `<button class="pos-card fade" style="--acc:${sp.color}" data-go="train" data-sport="${sp.id}" data-pos="${i}">
+    <div class="num">${showSport?sp.emoji:i+1}</div>
+    <div class="min-w-0 flex-1">
+      <div class="font-bold truncate">${esc(p.n)}</div>
+      <div class="text-xs mt-0.5 line-clamp-2" style="color:var(--muted)">${showSport?esc(sp.name)+' · ':''}${esc(p.d)}</div>
+      <div class="flex gap-1.5 mt-2"><span class="badge">${p.v==='perfil'?'📐 De perfil':'👤 De frente'}</span>${b?`<span class="badge" style="color:var(--primary)">★ Mejor ${b}%</span>`:''}</div>
+    </div>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><path d="m9 18 6-6-6-6"/></svg>
+  </button>`;
+}
+function renderHome(){
+  const q=state.q.trim().toLowerCase(), el=$('#homeList');
+  if(!q){
+    const total=SPORTS.reduce((a,s)=>a+s.pos.length,0);
+    el.innerHTML=`<div class="flex items-end justify-between mb-3"><h2 class="font-extrabold text-lg">Deportes</h2><span class="text-xs" style="color:var(--muted)">${SPORTS.length} deportes · ${total} posiciones</span></div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${SPORTS.map(s=>`
+      <button class="sport-card" style="--acc:${s.color}" data-go="sport" data-sport="${s.id}">
+        <div class="em">${s.emoji}</div>
+        <div class="font-extrabold mt-3 leading-tight">${esc(s.name)}</div>
+        <div class="text-xs mt-0.5" style="color:var(--muted)">${s.pos.length} posiciones</div>
+      </button>`).join('')}</div>`;
+    return;
+  }
+  const sm=SPORTS.filter(s=>s.name.toLowerCase().includes(q));
+  const pm=[];SPORTS.forEach(s=>s.pos.forEach((p,i)=>{if(p.n.toLowerCase().includes(q)||p.d.toLowerCase().includes(q))pm.push([s,i])}));
+  let h='';
+  if(sm.length)h+=`<h2 class="font-extrabold mb-3">Deportes</h2><div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">${sm.map(s=>`<button class="sport-card" style="--acc:${s.color}" data-go="sport" data-sport="${s.id}"><div class="em">${s.emoji}</div><div class="font-extrabold mt-3">${esc(s.name)}</div><div class="text-xs" style="color:var(--muted)">${s.pos.length} posiciones</div></button>`).join('')}</div>`;
+  if(pm.length)h+=`<h2 class="font-extrabold mb-3">Posiciones</h2><div class="grid gap-3 sm:grid-cols-2">${pm.map(([s,i])=>posCard(s,i,true)).join('')}</div>`;
+  if(!h)h=`<div class="text-center py-16" style="color:var(--muted)"><div class="text-5xl mb-2">🔎</div>No encontramos “${esc(state.q)}”.</div>`;
+  el.innerHTML=h;
+}
+function renderSport(){
+  const s=sportById(state.sportId); if(!s)return;
+  $('#sportView').style.setProperty('--acc',s.color);
+  $('#sportView').innerHTML=`
+   <div class="flex items-center gap-3 mb-5">
+     <button class="icon-btn" data-go="home" aria-label="Volver"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+     <span class="text-xs font-bold uppercase tracking-wider" style="color:var(--muted)">Todos los deportes</span>
+   </div>
+   <div class="card p-5 mb-5 relative overflow-hidden" style="background:linear-gradient(140deg,color-mix(in srgb,${s.color} 28%,#11151c),#11151c 75%)">
+     <div class="text-6xl">${s.emoji}</div>
+     <h1 class="text-3xl font-extrabold mt-3">${esc(s.name)}</h1>
+     <p class="text-sm mt-1" style="color:#cfd5e0">${esc(s.desc)}</p>
+     <span class="badge mt-3">${s.pos.length} posiciones disponibles</span>
+   </div>
+   <div class="grid gap-3 sm:grid-cols-2">${s.pos.map((_,i)=>posCard(s,i,false)).join('')}</div>`;
+  $('#sportView').scrollTop=0;window.scrollTo(0,0);
+}
+
+/* ============================================================
+   NAVEGACIÓN
+============================================================ */
+function go(view,opts={},push=true){
+  const prev=state.view;
+  Object.assign(state,{view},opts);
+  if(push){try{history.pushState({view,sportId:state.sportId,posIdx:state.posIdx},'')}catch{}}
+  $('#homeView').classList.toggle('hidden',view!=='home');
+  $('#sportView').classList.toggle('hidden',view!=='sport');
+  $('#trainView').classList.toggle('hidden',view!=='train');
+  document.body.style.overflow=view==='train'?'hidden':'';
+  if(prev==='train'&&view!=='train')stopTraining();
+  if(view==='home')renderHome();
+  if(view==='sport')renderSport();
+  if(view==='train')startTraining();
+  if(view!=='train')window.scrollTo(0,0);
+}
+window.addEventListener('popstate',e=>{const s=e.state||{view:'home'};go(s.view,{sportId:s.sportId,posIdx:s.posIdx||0},false)});
+try{history.replaceState({view:'home'},'')}catch{}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-go]'); if(!b)return;
+  const v=b.dataset.go;
+  if(v==='home')return back('home');
+  if(v==='sport')return go('sport',{sportId:b.dataset.sport});
+  if(v==='train')return go('train',{sportId:b.dataset.sport,posIdx:+b.dataset.pos});
+});
+function back(target){
+  if(history.state&&history.state.view!=='home'&&history.length>1){try{history.back();return}catch{}}
+  go(target,{},false);
+}
+$('#search').addEventListener('input',e=>{state.q=e.target.value;renderHome()});
+
+/* ============================================================
+   CÁMARA (frontal / trasera)
+============================================================ */
+const video=$('#cam'), ov=$('#ov'), octx=ov.getContext('2d'), stage=$('#stage'), wrap=$('#wrap');
+const cam={stream:null,facing:store.get('pdj_facing','user'),devId:null,mirror:true,current:'user',busy:false,paused:false};
+
+function showCamMsg(txt,icon='📷',btn=true){
+  $('#camMsg').classList.remove('hidden');
+  $('#camMsgTxt').textContent=txt; $('#camMsgIcon').textContent=icon;
+  $('#camRetry').classList.toggle('hidden',!btn);
+}
+const hideCamMsg=()=>$('#camMsg').classList.add('hidden');
+
+function stopCamera(){
+  if(cam.stream){cam.stream.getTracks().forEach(t=>t.stop());cam.stream=null}
+  try{video.srcObject=null}catch{}
+}
+async function startCamera(){
+  if(cam.busy)return; cam.busy=true;
+  stopCamera(); resetLive();
+  showCamMsg('Iniciando cámara…','⏳',false);
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    cam.busy=false;
+    return showCamMsg('Tu navegador no permite acceder a la cámara. Abre el archivo en HTTPS (o localhost) con un navegador actualizado.','🚫',false);
+  }
+  const base={width:{ideal:1280},height:{ideal:720}};
+  const tries=[];
+  if(cam.devId)tries.push({video:{...base,deviceId:{exact:cam.devId}},audio:false});
+  tries.push({video:{...base,facingMode:{exact:cam.facing}},audio:false});
+  tries.push({video:{...base,facingMode:{ideal:cam.facing}},audio:false});
+  tries.push({video:true,audio:false});
+  let stream=null,err=null;
+  for(const c of tries){
+    try{stream=await navigator.mediaDevices.getUserMedia(c);break}
+    catch(e){err=e;if(e.name==='NotAllowedError'||e.name==='SecurityError')break}
+  }
+  if(!stream){
+    cam.busy=false;
+    const denied=err&&(err.name==='NotAllowedError'||err.name==='SecurityError');
+    return showCamMsg(denied?'Permiso de cámara denegado. Habilítalo en los ajustes del navegador y vuelve a intentar.':'No se pudo abrir la cámara. Comprueba que no la esté usando otra aplicación.','🚫',true);
+  }
+  cam.stream=stream;
+  const track=stream.getVideoTracks()[0], st=track.getSettings?track.getSettings():{};
+  cam.current=st.facingMode|| (/back|rear|environment|trasera|posterior/i.test(track.label)?'environment':'user');
+  cam.mirror=cam.current==='user';
+  cam.devIdCur=st.deviceId||null;
+  video.srcObject=stream;
+  video.classList.toggle('mirror',cam.mirror); ov.classList.toggle('mirror',cam.mirror);
+  try{await video.play()}catch{}
+  store.set('pdj_facing',cam.current);
+  updateCamUI(); hideCamMsg();
+  cam.busy=false;
+  if(video.readyState<2)await new Promise(r=>video.addEventListener('loadeddata',r,{once:true}));
+  fit();
+}
+async function switchCamera(){
+  if(cam.busy)return;
+  $('#flipIcon').classList.remove('flip-anim');void $('#flipIcon').offsetWidth;$('#flipIcon').classList.add('flip-anim');
+  let devs=[];
+  try{devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput')}catch{}
+  const prev=cam.current;
+  const track=cam.stream&&cam.stream.getVideoTracks()[0];
+  const hasFacing=track&&track.getSettings&&track.getSettings().facingMode;
+  if(!hasFacing&&devs.length>1){
+    const i=devs.findIndex(d=>d.deviceId===cam.devIdCur);
+    cam.devId=devs[(i+1)%devs.length].deviceId;
+  } else {
+    cam.devId=null;
+    cam.facing=prev==='user'?'environment':'user';
+  }
+  await startCamera();
+  if(cam.current===prev&&devs.length<2)toast('Este dispositivo solo tiene una cámara disponible.');
+  else toast(cam.current==='user'?'📱 Cámara frontal activa (modo espejo)':'📷 Cámara trasera activa');
+}
+function updateCamUI(){
+  const front=cam.current==='user';
+  $('#camChipTxt').textContent=front?'Cámara frontal':'Cámara trasera';
+  $('#flipLbl').textContent=front?'Usar trasera':'Usar frontal';
+}
+function fit(){
+  const vw=video.videoWidth,vh=video.videoHeight; if(!vw||!vh)return;
+  const aw=stage.clientWidth,ah=stage.clientHeight, sc=Math.min(aw/vw,ah/vh);
+  wrap.style.width=Math.floor(vw*sc)+'px'; wrap.style.height=Math.floor(vh*sc)+'px';
+  if(ov.width!==vw||ov.height!==vh){ov.width=vw;ov.height=vh}
+}
+window.addEventListener('resize',fit);
+video.addEventListener('loadedmetadata',fit);
+if(window.ResizeObserver)new ResizeObserver(fit).observe(stage);
+
+/* ============================================================
+   MODELO DE POSE (MediaPipe)
+============================================================ */
+const VISION='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+let landmarker=null,loadingP=null,modelFailed=false;
+function loadModel(){
+  if(landmarker)return Promise.resolve(landmarker);
+  if(loadingP)return loadingP;
+  loadingP=(async()=>{
+    const {FilesetResolver,PoseLandmarker}=await import(VISION+'/vision_bundle.mjs');
+    const fs=await FilesetResolver.forVisionTasks(VISION+'/wasm');
+    const mk=d=>PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:MODEL,delegate:d},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
+    try{landmarker=await mk('GPU')}catch{landmarker=await mk('CPU')}
+    return landmarker;
+  })();
+  loadingP.catch(()=>{loadingP=null});
+  return loadingP;
+}
+
+/* ============================================================
+   ANÁLISIS
+============================================================ */
+const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[27,31],[28,32]];
+const live={sm:{},score:null,hold:0,achieved:false,miss:0,lastUI:0,lastVoice:0,items:{}};
+function resetLive(){live.sm={};live.score=null;live.hold=0;live.achieved=false;live.miss=0;live.items={}}
+const curSport=()=>sportById(state.sportId), curPos=()=>curSport().pos[state.posIdx];
+function activeKeys(p){return Object.keys(p.sp).filter(k=>!(k==='t'&&p.v==='frente')&&!(k==='s'&&p.v==='perfil'))}
+
+const ang=(a,b,c)=>{const x1=a.x-b.x,y1=a.y-b.y,x2=c.x-b.x,y2=c.y-b.y,m=Math.hypot(x1,y1)*Math.hypot(x2,y2);return m?Math.acos(clamp((x1*x2+y1*y2)/m,-1,1))*180/Math.PI:0};
+function computeMetrics(lm,W,H){
+  const p=i=>({x:lm[i].x*W,y:lm[i].y*H,v:lm[i].visibility??1});
+  const L={};[11,12,13,14,15,16,23,24,25,26,27,28].forEach(i=>L[i]=p(i));
+  const ok=i=>L[i].v>.4, m={};
+  // body check
+  const core=[11,12,23,24].every(i=>L[i].v>.45);
+  const legs=(ok(25)&&ok(27))||(ok(26)&&ok(28));
+  const complete=core&&legs;
+  // rodillas
+  const ks=[];if(ok(23)&&ok(25)&&ok(27))ks.push(ang(L[23],L[25],L[27]));if(ok(24)&&ok(26)&&ok(28))ks.push(ang(L[24],L[26],L[28]));
+  if(ks.length)m.k=ks.reduce((a,b)=>a+b)/ks.length;
+  // codos
+  const es=[];if(ok(11)&&ok(13)&&ok(15))es.push(ang(L[11],L[13],L[15]));if(ok(12)&&ok(14)&&ok(16))es.push(ang(L[12],L[14],L[16]));
+  if(es.length)m.e=es.reduce((a,b)=>a+b)/es.length;
+  // torso
+  if(core){const sx=(L[11].x+L[12].x)/2,sy=(L[11].y+L[12].y)/2,hx=(L[23].x+L[24].x)/2,hy=(L[23].y+L[24].y)/2;
+    m.t=Math.atan2(Math.abs(sx-hx),hy-sy)*180/Math.PI;}
+  // pies
+  const sw=Math.abs(L[11].x-L[12].x);
+  if(ok(27)&&ok(28)&&sw>W*.03)m.s=Math.abs(L[27].x-L[28].x)/sw;
+  // manos
+  if(core){const hy=(L[23].y+L[24].y)/2,sy=(L[11].y+L[12].y)/2,den=hy-sy;
+    const ws=[15,16].filter(ok).map(i=>(hy-L[i].y)/den);
+    if(ws.length&&den>H*.03)m.h=ws.reduce((a,b)=>a+b)/ws.length;}
+  return {m,complete};
+}
+function evalMetric(k,v,[lo,hi]){
+  const d=v<lo?lo-v:v>hi?v-hi:0, tol=DEF[k].tol;
+  return {d,sc:Math.max(0,1-d/tol),dir:v<lo?'low':v>hi?'high':'ok',st:d<=tol*.08?'ok':(1-d/tol)>=.5?'near':'bad'};
+}
+
+function onFrame(res){
+  const W=video.videoWidth,H=video.videoHeight;
+  octx.clearRect(0,0,ov.width,ov.height);
+  const lm=res&&res.landmarks&&res.landmarks[0];
+  if(!lm){
+    if(++live.miss>12){live.score=null;live.hold=0;setStatus('🧍 No te veo. Colócate a 2–3 m con el cuerpo completo en el encuadre.');paintScore(null);paintRows(null)}
+    return;
+  }
+  live.miss=0;
+  const {m,complete}=computeMetrics(lm,W,H);
+  const pos=curPos(), keys=activeKeys(pos), items={};
+  let sum=0,n=0;
+  keys.forEach(k=>{
+    if(m[k]==null)return;
+    live.sm[k]=live.sm[k]==null?m[k]:live.sm[k]*.65+m[k]*.35;
+    const ev=evalMetric(k,live.sm[k],pos.sp[k]);
+    items[k]={v:live.sm[k],...ev}; sum+=ev.sc; n++;
+  });
+  live.items=items;
+  const score=n?Math.round(sum/n*100):null;
+  live.score=score;
+  drawSkeleton(lm,W,H,items,score);
+  if(!complete)setStatus('⚠️ Aléjate un poco: muestra de hombros a pies.');
+  else if(score!=null&&score>=85)setStatus('✅ Excelente, mantén la posición');
+  else{
+    const w=worst(items);
+    setStatus(w?'👉 '+MSG[w.k][w.dir]:'Ajustando…');
+  }
+  // logro
+  const now=performance.now();
+  if(score!=null&&score>=85&&complete){
+    if(!live.hold)live.hold=now;
+    if(!live.achieved&&now-live.hold>1200){live.achieved=true;onAchieved(score)}
+  } else {live.hold=0; if(live.achieved&&(score==null||score<70))live.achieved=false}
+  if(now-live.lastUI>100){live.lastUI=now;paintScore(score);paintRows(items);paintCoach(items,score,complete)}
+  voiceCoach(items,score,complete,now);
+}
+function worst(items){let w=null;for(const k in items){const it=items[k];if(it.st!=='ok'&&(!w||it.sc<w.sc))w={k,...it}}return w}
+function drawSkeleton(lm,W,H,items,score){
+  const good=score!=null&&score>=85, lw=Math.max(3,W/190), r=Math.max(5,W/120);
+  const bad=new Set();
+  for(const k in items){if(items[k].st==='bad'||items[k].st==='near')DEF[k].j.forEach(j=>bad.add(j))}
+  octx.lineCap='round';octx.lineWidth=lw;octx.strokeStyle=good?'#b6ff3b':'#ffffff';octx.shadowColor='rgba(0,0,0,.6)';octx.shadowBlur=6;
+  BONES.forEach(([a,b])=>{
+    if((lm[a].visibility??1)<.4||(lm[b].visibility??1)<.4)return;
+    octx.beginPath();octx.moveTo(lm[a].x*W,lm[a].y*H);octx.lineTo(lm[b].x*W,lm[b].y*H);octx.stroke();
+  });
+  [11,12,13,14,15,16,23,24,25,26,27,28].forEach(i=>{
+    if((lm[i].visibility??1)<.4)return;
+    const isBad=bad.has(i);
+    octx.beginPath();octx.fillStyle=isBad?'#ff5470':(good?'#b6ff3b':'#fff');
+    octx.arc(lm[i].x*W,lm[i].y*H,isBad?r*1.5:r,0,Math.PI*2);octx.fill();
+  });
+  octx.shadowBlur=0;
+}
+function onAchieved(score){
+  const key=state.sportId+':'+state.posIdx;
+  if(!best[key]||score>best[key]){best[key]=score;store.set('pdj_best',best)}
+  const a=$('#achieved');a.classList.remove('hidden','achieved');void a.offsetWidth;a.classList.add('achieved');
+  setTimeout(()=>a.classList.add('hidden'),2200);
+  try{navigator.vibrate&&navigator.vibrate([80,40,80])}catch{}
+  speak('¡Excelente postura!',true);
+}
+
+/* ---------- UI del panel ---------- */
+function setStatus(t){const el=$('#statusChip');if(el.textContent!==t)el.textContent=t}
+function paintScore(score){
+  const ring=$('#ring'),C=163.4;
+  if(score==null){ring.style.strokeDashoffset=C;ring.style.stroke='#555';$('#scoreTxt').textContent='--';$('#scoreLbl').textContent='Esperando…';return}
+  ring.style.strokeDashoffset=C*(1-score/100);
+  const col=score>=85?'#b6ff3b':score>=60?'#ffb020':'#ff5470';
+  ring.style.stroke=col;$('#scoreTxt').textContent=score;
+  $('#scoreLbl').textContent=score>=85?'¡Perfecta!':score>=60?'Casi lista':'Ajusta';
+}
+function buildRows(){
+  const p=curPos(),keys=activeKeys(p);
+  $('#rows').innerHTML=keys.map(k=>{
+    const [a,b]=p.sp[k],d=DEF[k],range=d.max-d.min;
+    const left=clamp((a-d.min)/range,0,1)*100,w=clamp((b-d.min)/range,0,1)*100-left;
+    return `<div class="rounded-2xl p-3" style="background:var(--surface2)" data-k="${k}">
+      <div class="flex justify-between items-center text-xs"><span class="flex items-center gap-1.5 font-bold"><i class="dot"></i>${d.name}</span><span class="val font-semibold" style="color:var(--muted)">--</span></div>
+      <div class="bar"><div class="band" style="left:${left}%;width:${Math.max(w,2)}%"></div><div class="mark hidden"></div></div>
+      <div class="flex justify-between text-[11px]" style="color:var(--muted)"><span>Objetivo: ${fmtRange(k,[a,b])}</span><span class="hint"></span></div>
+    </div>`}).join('');
+}
+function paintRows(items){
+  document.querySelectorAll('#rows [data-k]').forEach(row=>{
+    const k=row.dataset.k,it=items&&items[k],dot=row.querySelector('.dot'),mark=row.querySelector('.mark'),val=row.querySelector('.val'),hint=row.querySelector('.hint');
+    dot.className='dot';hint.className='hint';
+    if(!it){mark.classList.add('hidden');val.textContent='--';hint.textContent='';return}
+    const d=DEF[k];mark.classList.remove('hidden');
+    mark.style.left=clamp((it.v-d.min)/(d.max-d.min),0,1)*100+'%';
+    mark.style.background=it.st==='ok'?'#b6ff3b':it.st==='near'?'#ffb020':'#ff5470';
+    dot.classList.add('st-'+it.st);val.textContent=fmtVal(k,it.v);
+    hint.classList.add('tx-'+it.st);hint.textContent=it.st==='ok'?'✓ Correcto':MSG[k][it.dir];
+  });
+}
+function paintCoach(items,score,complete){
+  const el=$('#coachMsg');let t,c='var(--surface2)',col='var(--text)';
+  if(score==null){t='Colócate de cuerpo completo frente a la cámara.'}
+  else if(score>=85){t='🎯 ¡Excelente! Tu postura coincide con la posición ideal.';c='rgba(182,255,59,.15)';col='var(--primary)'}
+  else{const w=worst(items);t=(w?'Corrección principal: '+MSG[w.k][w.dir]+'.':'Casi perfecto, sigue ajustando.');c=score>=60?'rgba(255,176,32,.12)':'rgba(255,84,112,.12)';col=score>=60?'var(--warn)':'var(--bad)'}
+  if(el.textContent!==t)el.textContent=t;el.style.background=c;el.style.color=col;
+}
+
+/* ---------- Voz ---------- */
+function speak(t,force){
+  if(!voiceOn&&!force)return; if(!voiceOn)return;
+  try{if(!window.speechSynthesis)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='es-ES';u.rate=1.05;speechSynthesis.speak(u)}catch{}
+}
+function voiceCoach(items,score,complete,now){
+  if(!voiceOn||score==null||score>=85||!complete||now-live.lastVoice<4500)return;
+  const w=worst(items);if(!w)return;live.lastVoice=now;speak(MSG[w.k][w.dir]);
+}
+function paintVoiceBtn(){$('#tVoice').classList.toggle('on',voiceOn)}
+
+/* ============================================================
+   CICLO DE ENTRENAMIENTO
+============================================================ */
+let raf=0,lastT=-1;
+function loop(){
+  raf=requestAnimationFrame(loop);
+  if(cam.paused||!landmarker||video.readyState<2||!video.videoWidth)return;
+  if(video.currentTime===lastT)return; lastT=video.currentTime;
+  let res;try{res=landmarker.detectForVideo(video,performance.now())}catch{return}
+  onFrame(res);
+}
+function paintTrainHeader(){
+  const s=curSport(),p=curPos();
+  $('#trainView').style.setProperty('--acc',s.color);
+  $('#tSport').textContent=s.emoji+' '+s.name;
+  $('#tTitle').textContent=p.n;
+  $('#viewChip').textContent=p.v==='perfil'?'📐 Colócate de perfil':'👤 Colócate de frente';
+  $('#posDesc').textContent=p.d;
+  $('#posTips').innerHTML=p.tips.map(t=>`<li class="flex gap-2"><span style="color:var(--acc)">●</span><span>${esc(t)}</span></li>`).join('');
+  $('#posChips').innerHTML=s.pos.map((q,i)=>`<button class="chip ${i===state.posIdx?'active':''}" style="--acc:${s.color}" data-chip="${i}">${esc(q.n)}</button>`).join('');
+  const act=$('#posChips .active');if(act)act.scrollIntoView({inline:'center',block:'nearest'});
+  buildRows();
+}
+$('#posChips').addEventListener('click',e=>{
+  const b=e.target.closest('[data-chip]');if(!b)return;
+  state.posIdx=+b.dataset.chip;resetLive();paintTrainHeader();paintScore(null);
+  try{history.replaceState({view:'train',sportId:state.sportId,posIdx:state.posIdx},'')}catch{}
+});
+async function startTraining(){
+  cam.paused=false;paintPauseIcon();
+  resetLive();paintTrainHeader();paintScore(null);paintVoiceBtn();updateCamUI();
+  setStatus('Iniciando…');
+  startCamera();
+  cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
+  if(!landmarker){
+    setStatus('🧠 Cargando análisis de postura…');
+    try{await loadModel();if(state.view==='train')setStatus('Colócate dentro del encuadre')}
+    catch(e){modelFailed=true;setStatus('⚠️ Análisis automático no disponible (requiere internet). Usa la cámara con la guía.');
+      $('#coachMsg').textContent='No se pudo cargar el modelo de IA. Puedes usar la cámara como espejo y seguir las claves de la posición.'}
+  } else setStatus('Colócate dentro del encuadre');
+}
+function stopTraining(){
+  cancelAnimationFrame(raf);stopCamera();resetLive();
+  octx.clearRect(0,0,ov.width,ov.height);
+  try{window.speechSynthesis&&speechSynthesis.cancel()}catch{}
+}
+function paintPauseIcon(){
+  $('#pauseIcon').innerHTML=cam.paused?'<path d="M7 4.5v15l13-7.5z"/>':'<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+}
+$('#tBack').addEventListener('click',()=>back('sport'));
+$('#tFlip').addEventListener('click',switchCamera);
+$('#tFlip2').addEventListener('click',switchCamera);
+$('#camRetry').addEventListener('click',startCamera);
+$('#tVoice').addEventListener('click',()=>{voiceOn=!voiceOn;store.set('pdj_voice',voiceOn);paintVoiceBtn();toast(voiceOn?'🔊 Voz del entrenador activada':'🔇 Voz desactivada');if(voiceOn)speak('Voz activada')});
+$('#tPause').addEventListener('click',()=>{
+  cam.paused=!cam.paused;paintPauseIcon();
+  if(cam.paused){video.pause();toast('Análisis en pausa')}else{video.play().catch(()=>{});toast('Análisis reanudado')}
+});
+$('#tSnap').addEventListener('click',()=>{
+  const W=video.videoWidth,H=video.videoHeight;if(!W)return toast('La cámara aún no está lista');
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  x.save();if(cam.mirror){x.translate(W,0);x.scale(-1,1)}x.drawImage(video,0,0,W,H);x.drawImage(ov,0,0,W,H);x.restore();
+  const fs=Math.round(W/28);x.fillStyle='rgba(8,10,14,.7)';x.fillRect(0,H-fs*2.6,W,fs*2.6);
+  x.fillStyle='#b6ff3b';x.font=`800 ${fs}px system-ui,sans-serif`;x.fillText(`${curSport().name} · ${curPos().n}`,fs*.7,H-fs*1.35);
+  x.fillStyle='#fff';x.font=`600 ${Math.round(fs*.75)}px system-ui,sans-serif`;x.fillText(`Postura: ${live.score!=null?live.score+'%':'--'} · Punto de Juego`,fs*.7,H-fs*.4);
+  c.toBlob(b=>{if(!b)return;const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`punto-de-juego-${Date.now()}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('📸 Foto guardada')},'image/png');
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.view==='train'){stopCamera()}else if(!document.hidden&&state.view==='train'&&!cam.stream&&!cam.busy){startCamera()}});
+
+/* INIT */
+renderHome();
+</script>
+
+
+</body></html>
